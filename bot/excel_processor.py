@@ -1,7 +1,19 @@
 import openpyxl
 from aiogram.types import Message
 import asyncio
+import logging
 from bot.llm import get_hs_and_rates
+
+logger = logging.getLogger(__name__)
+
+
+async def _update_status(status_message: Message, text: str) -> None:
+    try:
+        await status_message.edit_text(text)
+    except Exception as error:
+        # Ошибка обновления прогресса не должна прерывать обработку файла.
+        logger.warning("Не удалось обновить сообщение прогресса: %s", error)
+
 
 async def process_excel(file_path: str, status_message: Message) -> tuple[str, str]:
     wb = openpyxl.load_workbook(file_path)
@@ -18,9 +30,14 @@ async def process_excel(file_path: str, status_message: Message) -> tuple[str, s
     if total == 0:
         raise Exception("Не найдено ни одного товара в таблице")
 
-    await status_message.edit_text(f"Товаров найдено: {total}\nНачинаю обработку...")
+    await _update_status(
+        status_message,
+        f"Товаров найдено: {total}\nНачинаю обработку...",
+    )
 
     processed = 0
+    successful = 0
+    failed_rows = []
     heavy_count = 0
     light_count = 0
 
@@ -29,7 +46,8 @@ async def process_excel(file_path: str, status_message: Message) -> tuple[str, s
         purpose = str(ws.cell(row=row, column=6).value or "")
         specs = str(ws.cell(row=row, column=7).value or "")
 
-        await status_message.edit_text(
+        await _update_status(
+            status_message,
             f"{processed + 1}/{total}\n<code>{name[:55]}</code>"
         )
 
@@ -115,10 +133,12 @@ async def process_excel(file_path: str, status_message: Message) -> tuple[str, s
             ws.cell(row=row, column=39).value = round(ddp_s, 4)
             ws.cell(row=row, column=40).value = round(ddp_m, 4)
             ws.cell(row=row, column=41).value = round(ddp_l, 4)
+            successful += 1
 
         except Exception as e:
             print(f"Ошибка в строке {row}: {e}")
             ws.cell(row=row, column=19).value = f"ERROR: {str(e)[:40]}"
+            failed_rows.append(row)
 
         processed += 1
         await asyncio.sleep(0.35)
@@ -128,6 +148,9 @@ async def process_excel(file_path: str, status_message: Message) -> tuple[str, s
 
     info = (
         f"Обработано: {processed}\n"
+        f"Успешно: {successful} | Ошибок: {len(failed_rows)}\n"
         f"Тяжёлых: {heavy_count} | Лёгких: {light_count}"
     )
+    if failed_rows:
+        info += f"\nСтроки с ошибками: {', '.join(map(str, failed_rows))}"
     return result_path, info

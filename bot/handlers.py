@@ -19,11 +19,12 @@ async def handle_document(message: Message, bot: Bot):
         await message.answer("Нужен файл в формате .xlsx")
         return
     status = await message.answer("Файл получен. Начинаю обработку...")
+    result_path = None
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         file_path = tmp.name
-    await bot.download(document, destination=file_path)
 
     try:
+        await bot.download(document, destination=file_path)
         result_path, info = await process_excel(file_path, status)
         result_file = FSInputFile(result_path, filename="DDP_filled.xlsx")
         await message.answer_document(
@@ -35,5 +36,5 @@ async def handle_document(message: Message, bot: Bot):
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
-        if 'result_path' in locals() and os.path.exists(result_path):
+        if result_path and os.path.exists(result_path):
             os.remove(result_path)
