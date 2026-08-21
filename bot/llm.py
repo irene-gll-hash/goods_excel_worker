@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import random
-
 from openai import AsyncOpenAI
 from openai import AuthenticationError, BadRequestError, PermissionDeniedError
 from dotenv import load_dotenv
