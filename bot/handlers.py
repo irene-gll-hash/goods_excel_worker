@@ -22,7 +22,6 @@ async def handle_document(message: Message, bot: Bot):
     result_path = None
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         file_path = tmp.name
-
     try:
         await bot.download(document, destination=file_path)
         result_path, info = await process_excel(file_path, status)

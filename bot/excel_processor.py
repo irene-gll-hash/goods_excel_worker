@@ -6,35 +6,28 @@ from bot.llm import get_hs_and_rates
 
 logger = logging.getLogger(__name__)
 
-
 async def _update_status(status_message: Message, text: str) -> None:
     try:
         await status_message.edit_text(text)
     except Exception as error:
-        # Ошибка обновления прогресса не должна прерывать обработку файла.
         logger.warning("Не удалось обновить сообщение прогресса: %s", error)
-
 
 async def process_excel(file_path: str, status_message: Message) -> tuple[str, str]:
     wb = openpyxl.load_workbook(file_path)
     ws = wb.active
-
     data_rows = []
     for row in range(4, ws.max_row + 1):
         name = ws.cell(row=row, column=1).value
         if not name or str(name).strip() == "" or "пример" in str(name).lower() or "例子" in str(name):
             continue
         data_rows.append(row)
-
     total = len(data_rows)
     if total == 0:
         raise Exception("Не найдено ни одного товара в таблице")
-
     await _update_status(
         status_message,
         f"Товаров найдено: {total}\nНачинаю обработку...",
     )
-
     processed = 0
     successful = 0
     failed_rows = []
@@ -50,15 +43,14 @@ async def process_excel(file_path: str, status_message: Message) -> tuple[str, s
             status_message,
             f"{processed + 1}/{total}\n<code>{name[:55]}</code>"
         )
-
         try:
             # === 1. Коды и ставки от DeepSeek ===
             result = await get_hs_and_rates(name, purpose, specs)
-
+            
             cn_hs = result.get("cn_hs", "")
             ru_hs = result.get("ru_hs", "")
-            duty_rate = float(result.get("duty_rate", 0))
-            vat_rate = float(result.get("vat_rate", 0.22))
+            duty_rate = float(result.get("duty_rate", 0)) / 100
+            vat_rate = float(result.get("vat_rate", 22)) / 100
 
             ws.cell(row=row, column=19).value = cn_hs      # S
             ws.cell(row=row, column=20).value = ru_hs      # T
